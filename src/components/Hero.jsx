@@ -1,11 +1,67 @@
-import Spline from '@splinetool/react-spline';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
+// Lazy import Spline to avoid hydration hiccups and catch runtime errors gracefully
+let SplineComponent = null;
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    console.error('Spline render error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? null;
+    }
+    return this.props.children;
+  }
+}
+
 export default function Hero() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    // Dynamically import to prevent initial render crash if WebGL/canvas fails
+    import('@splinetool/react-spline')
+      .then((mod) => {
+        if (!mounted) return;
+        SplineComponent = mod.default;
+        setReady(true);
+      })
+      .catch((e) => {
+        console.warn('Failed to load Spline, showing fallback.', e);
+        setReady(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <section className="relative min-h-[90vh] grid place-items-center overflow-hidden bg-slate-950">
       <div className="absolute inset-0">
-        <Spline scene="https://prod.spline.design/EF7JOSsHLk16Tlw9/scene.splinecode" style={{ width: '100%', height: '100%' }} />
+        <ErrorBoundary
+          fallback={
+            <div className="absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_30%,rgba(147,51,234,0.25),transparent)]" />
+          }
+        >
+          {ready && SplineComponent ? (
+            <SplineComponent
+              scene="https://prod.spline.design/EF7JOSsHLk16Tlw9/scene.splinecode"
+              style={{ width: '100%', height: '100%' }}
+            />
+          ) : (
+            // Fallback placeholder while Spline loads or if it fails
+            <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-600/10 via-indigo-500/10 to-slate-900" />
+          )}
+        </ErrorBoundary>
       </div>
 
       {/* Gradient overlays */}
